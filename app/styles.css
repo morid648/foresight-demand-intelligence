@@ -1,0 +1,76 @@
+/* Custom Styling for Project FORESIGHT Operations Planning Dashboard */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #1E293B;
+}
+
+/* Metric KPI Cards */
+.kpi-card {
+    background-color: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 18px 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    margin-bottom: 12px;
+}
+
+.kpi-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748B;
+    margin-bottom: 6px;
+}
+
+.kpi-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #0F172A;
+}
+
+.kpi-subtext {
+    font-size: 0.8rem;
+    color: #64748B;
+    margin-top: 4px;
+}
+
+/* Action Badges */
+.badge-reorder {
+    background-color: #FEE2E2;
+    color: #B91C1C;
+    padding: 4px 10px;
+    border-radius: 9999px;
+    font-weight: 600;
+    font-size: 0.75rem;
+}
+
+.badge-markdown {
+    background-color: #FEF3C7;
+    color: #B45309;
+    padding: 4px 10px;
+    border-radius: 9999px;
+    font-weight: 600;
+    font-size: 0.75rem;
+}
+
+.badge-watch {
+    background-color: #EDE9FE;
+    color: #6D28D9;
+    padding: 4px 10px;
+    border-radius: 9999px;
+    font-weight: 600;
+    font-size: 0.75rem;
+}
+
+.badge-healthy {
+    background-color: #DCFCE7;
+    color: #15803D;
+    padding: 4px 10px;
+    border-radius: 9999px;
+    font-weight: 600;
+    font-size: 0.75rem;
+}

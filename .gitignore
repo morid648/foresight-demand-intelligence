@@ -1,0 +1,47 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Data and Artifacts (Confidential & Large files)
+data/raw/*.csv
+data/processed/*.parquet
+data/processed/*.csv
+!data/sample/*.csv
+artifacts/*.pkl
+artifacts/*.joblib
+
+# Secrets and Local Configurations
+.env
+.env.local
+*.secret
+*.key
+*.json
+!data/
+!reports/
+!src/
+!tests/
+!docs/
+!artifacts/metrics.json
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Internal Agent & Specification Files (Ignored for GitHub repo)
+ANTIGRAVITY_PROMPT.md
+architecture.md
+design.md
+prd.md
+rules.md
+tasks.md
+memory.md

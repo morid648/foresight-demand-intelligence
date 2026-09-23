@@ -1,0 +1,78 @@
+{
+  "models": {
+    "Seasonal_Naive": {
+      "aggregate_wape": 0.1389,
+      "aggregate_bias": -0.0278,
+      "aggregate_mape": 0.135,
+      "fold_breakdown": [
+        {
+          "fold": 1,
+          "wape": 0.1389,
+          "bias": -0.0278
+        },
+        {
+          "fold": 2,
+          "wape": 0.1389,
+          "bias": -0.0278
+        }
+      ]
+    },
+    "Ridge_Linear": {
+      "aggregate_wape": 0.0056,
+      "aggregate_bias": 0.0001,
+      "aggregate_mape": 0.0054,
+      "fold_breakdown": [
+        {
+          "fold": 1,
+          "wape": 0.0058,
+          "bias": 0.0006
+        },
+        {
+          "fold": 2,
+          "wape": 0.0053,
+          "bias": -0.0007
+        }
+      ]
+    },
+    "HistGradientBoosting": {
+      "aggregate_wape": 0.0431,
+      "aggregate_bias": -0.0099,
+      "aggregate_mape": 0.0433,
+      "fold_breakdown": [
+        {
+          "fold": 1,
+          "wape": 0.0435,
+          "bias": -0.0038
+        },
+        {
+          "fold": 2,
+          "wape": 0.0426,
+          "bias": -0.0177
+        }
+      ]
+    },
+    "RandomForest": {
+      "aggregate_wape": 0.0,
+      "aggregate_bias": 0.0,
+      "aggregate_mape": 0.0,
+      "fold_breakdown": [
+        {
+          "fold": 1,
+          "wape": 0.0,
+          "bias": 0.0
+        },
+        {
+          "fold": 2,
+          "wape": 0.0,
+          "bias": 0.0
+        }
+      ]
+    }
+  },
+  "folds": 2,
+  "horizon_weeks": 4,
+  "winner": "RandomForest",
+  "baseline_wape": 0.1389,
+  "winning_wape": 0.0,
+  "beats_baseline": true
+}
