@@ -30,6 +30,7 @@ artifacts/*.joblib
 !tests/
 !docs/
 !artifacts/metrics.json
+!vercel.json
 
 # IDE and OS files
 .vscode/
