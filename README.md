@@ -74,8 +74,8 @@
 ### 1. Environment Installation
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/foresight.git
-cd foresight
+git clone https://github.com/morid648/foresight-demand-intelligence.git
+cd foresight-demand-intelligence
 
 # Install dependencies
 pip install -r requirements.txt
