@@ -9,12 +9,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class ProjectConfig(BaseSettings):
     """Configuration settings loaded from environment or defaults."""
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env" if os.path.exists(".env") else None,
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
 
     # Project Metadata
     PROJECT_NAME: str = "FORESIGHT"
     CLIENT_NAME: str = "NorthBay Living"
-    ENVIRONMENT: str = "development"
+    ENVIRONMENT: str = "production"
     RANDOM_SEED: int = 42
 
     # Paths

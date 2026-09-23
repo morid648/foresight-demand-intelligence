@@ -7,31 +7,49 @@ import sys
 import os
 from typing import Dict, Any
 
-# Ensure project root is in python path
+# Ensure project root and service directories are in sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_dir, ".."))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+for p in [project_root, current_dir]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
 import numpy as np
-import pandas as pd
 
-from src.config import config
-from src.logging_utils import get_logger
-from src.io import load_json
-from src.baseline import SeasonalNaiveBaseline
-from src.risk import compute_sku_risk_profile
-from service.schemas import (
-    SKUInputPayload,
-    SKUOutputResponse,
-    BatchScoreRequest,
-    BatchScoreResponse,
-    HealthResponse,
-    MetadataResponse
-)
+# Safe resilient imports for serverless environments
+try:
+    from src.config import config
+    from src.logging_utils import get_logger
+    from src.io import load_json
+    from src.risk import compute_sku_risk_profile
+except ImportError:
+    # Fallback to local relative imports if executed inside package
+    sys.path.insert(0, os.path.abspath(os.path.join(current_dir, "../src")))
+    from config import config
+    from logging_utils import get_logger
+    from io import load_json
+    from risk import compute_sku_risk_profile
+
+try:
+    from service.schemas import (
+        SKUInputPayload,
+        SKUOutputResponse,
+        BatchScoreRequest,
+        BatchScoreResponse,
+        HealthResponse,
+        MetadataResponse
+    )
+except ImportError:
+    from schemas import (
+        SKUInputPayload,
+        SKUOutputResponse,
+        BatchScoreRequest,
+        BatchScoreResponse,
+        HealthResponse,
+        MetadataResponse
+    )
 
 logger = get_logger(__name__)
 
@@ -82,7 +100,6 @@ def score_single_sku_logic(payload: SKUInputPayload) -> SKUOutputResponse:
         # Exponential moving median / average
         recent_window = min(n, 8)
         med_val = float(np.median(recent_sales[-recent_window:]))
-        # Add slight trend if available
         trend = float(np.mean(np.diff(recent_sales[-recent_window:]))) if recent_window >= 4 else 0.0
         weekly_fcst = np.array([max(0.0, med_val + (h * trend * 0.1)) for h in range(config.FORECAST_HORIZON_WEEKS)])
 

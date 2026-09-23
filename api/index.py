@@ -1,10 +1,11 @@
 import sys
 import os
 
-# Ensure project root is in sys.path for Vercel Serverless environment
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.abspath(os.path.join(current_dir, ".."))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+# Ensure project root and service directory are in sys.path
+root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+service_dir = os.path.join(root_dir, "service")
+for p in [root_dir, service_dir]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
 
 from service.main import app
