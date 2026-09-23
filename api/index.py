@@ -7,12 +7,15 @@ from typing import List, Optional, Literal, Dict, Any
 import numpy as np
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 app = FastAPI(
     title="Project FORESIGHT Scoring Service",
     description="Operational Demand Forecasting & Inventory Risk Scoring API for NorthBay Living",
-    version="1.0.0"
+    version="1.0.0",
+    docs_url="/docs",
+    openapi_url="/openapi.json"
 )
 
 app.add_middleware(
@@ -242,10 +245,13 @@ def score_single_sku_logic(payload: SKUInputPayload) -> SKUOutputResponse:
 
 
 # ==========================================
-# REST API Endpoints
+# REST API Endpoints (Supporting both / and /api prefixes)
 # ==========================================
 
 @app.get("/", tags=["Root"])
+@app.get("/api", tags=["Root"])
+@app.get("/api/index", tags=["Root"])
+@app.get("/api/index.py", tags=["Root"])
 def root():
     return {
         "service": "Project FORESIGHT AI Demand & Inventory Intelligence API",
@@ -258,6 +264,7 @@ def root():
 
 
 @app.get("/health", response_model=HealthResponse, tags=["Observability"])
+@app.get("/api/health", response_model=HealthResponse, tags=["Observability"])
 def health_check():
     return HealthResponse(
         status="healthy",
@@ -268,6 +275,7 @@ def health_check():
 
 
 @app.get("/metadata", response_model=MetadataResponse, tags=["Observability"])
+@app.get("/api/metadata", response_model=MetadataResponse, tags=["Observability"])
 def get_metadata():
     return MetadataResponse(
         model_name="RandomForest",
@@ -280,7 +288,13 @@ def get_metadata():
     )
 
 
+@app.get("/api/docs", include_in_schema=False)
+def redirect_to_docs():
+    return RedirectResponse(url="/docs")
+
+
 @app.post("/score", response_model=SKUOutputResponse, tags=["Scoring"])
+@app.post("/api/score", response_model=SKUOutputResponse, tags=["Scoring"])
 def score_sku(payload: SKUInputPayload):
     try:
         return score_single_sku_logic(payload)
@@ -289,6 +303,7 @@ def score_sku(payload: SKUInputPayload):
 
 
 @app.post("/score/batch", response_model=BatchScoreResponse, tags=["Scoring"])
+@app.post("/api/score/batch", response_model=BatchScoreResponse, tags=["Scoring"])
 def score_batch(payload: BatchScoreRequest):
     results = []
     total_sales_at_risk = 0.0
