@@ -8,26 +8,17 @@ import numpy as np
 from fastapi import FastAPI, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.openapi.utils import get_openapi
 from pydantic import BaseModel, Field
 
 app = FastAPI(
     title="Project FORESIGHT Scoring Service",
     description="Operational Demand Forecasting & Inventory Risk Scoring API for NorthBay Living",
     version="1.0.0",
-    docs_url="/docs",
-    openapi_url="/openapi.json"
+    docs_url=None,
+    openapi_url=None
 )
-
-# Custom middleware to fix Vercel rewrite paths
-@app.middleware("http")
-async def fix_vercel_paths(request: Request, call_next):
-    # In Vercel, when rewritten, x-matched-path or raw headers contain the original request path
-    # If the path in scope is /api/index.py, restore from x-matched-path if present
-    matched_path = request.headers.get("x-matched-path")
-    if matched_path and matched_path != "/api/index.py":
-        request.scope["path"] = matched_path
-    response = await call_next(request)
-    return response
 
 app.add_middleware(
     CORSMiddleware,
@@ -309,9 +300,21 @@ def get_metadata():
     )
 
 
+@app.get("/docs", include_in_schema=False)
 @app.get("/api/docs", include_in_schema=False)
-def redirect_to_docs():
-    return RedirectResponse(url="/docs")
+async def custom_swagger_ui_html():
+    return get_swagger_ui_html(
+        openapi_url="/api/openapi.json",
+        title="Project FORESIGHT - Swagger UI",
+        swagger_js_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js",
+        swagger_css_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css",
+    )
+
+
+@app.get("/openapi.json", include_in_schema=False)
+@app.get("/api/openapi.json", include_in_schema=False)
+async def get_open_api_endpoint():
+    return JSONResponse(get_openapi(title=app.title, version=app.version, routes=app.routes, description=app.description))
 
 
 @app.post("/score", response_model=SKUOutputResponse, tags=["Scoring"])

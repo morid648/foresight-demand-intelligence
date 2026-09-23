@@ -1,8 +1,11 @@
 {
   "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/api/index.py"
-    }
+    { "source": "/", "destination": "/api" },
+    { "source": "/docs", "destination": "/api/docs" },
+    { "source": "/openapi.json", "destination": "/api/openapi.json" },
+    { "source": "/health", "destination": "/api/health" },
+    { "source": "/metadata", "destination": "/api/metadata" },
+    { "source": "/score", "destination": "/api/score" },
+    { "source": "/score/batch", "destination": "/api/score/batch" }
   ]
 }
