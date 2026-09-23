@@ -180,5 +180,6 @@ foresight-demand-intelligence/
 ## 👨‍💻 Author
 
 **Built by Anshul**
-- **LinkedIn:** [linkedin.com/in/anshul-chaudhary](https://www.linkedin.com/in/anshul-chaudhary/)
+- **LinkedIn:** [linkedin.com/in/anshul-chaudhary-508138308](https://www.linkedin.com/in/anshul-chaudhary-508138308/)
 - **GitHub:** [github.com/morid648](https://github.com/morid648)
+

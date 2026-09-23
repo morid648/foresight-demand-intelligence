@@ -911,7 +911,7 @@ LANDING_PAGE_HTML = """<!DOCTYPE html>
       <div class="footer-links">
         <a href="/docs">Swagger Documentation</a>
         <a href="https://github.com/morid648/foresight-demand-intelligence" target="_blank">GitHub Source Code</a>
-        <a href="https://linkedin.com/in/anshul02" target="_blank">LinkedIn Profile</a>
+        <a href="https://www.linkedin.com/in/anshul-chaudhary-508138308/" target="_blank">LinkedIn Profile</a>
       </div>
       <p>Project FORESIGHT · Built with precision by <strong>Anshul</strong> · Applied AI & Data Intelligence Engineer</p>
     </div>
