@@ -5,9 +5,9 @@ Operational Demand Forecasting & Inventory Risk Intelligence API for NorthBay Li
 
 from typing import List, Optional, Literal, Dict, Any
 import numpy as np
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 app = FastAPI(
@@ -17,6 +17,17 @@ app = FastAPI(
     docs_url="/docs",
     openapi_url="/openapi.json"
 )
+
+# Custom middleware to fix Vercel rewrite paths
+@app.middleware("http")
+async def fix_vercel_paths(request: Request, call_next):
+    # In Vercel, when rewritten, x-matched-path or raw headers contain the original request path
+    # If the path in scope is /api/index.py, restore from x-matched-path if present
+    matched_path = request.headers.get("x-matched-path")
+    if matched_path and matched_path != "/api/index.py":
+        request.scope["path"] = matched_path
+    response = await call_next(request)
+    return response
 
 app.add_middleware(
     CORSMiddleware,
@@ -260,6 +271,16 @@ def root():
         "documentation": "/docs",
         "health_check": "/health",
         "model_metadata": "/metadata"
+    }
+
+
+@app.get("/debug", include_in_schema=False)
+@app.get("/api/debug", include_in_schema=False)
+def debug_info(request: Request):
+    return {
+        "scope_path": request.scope.get("path"),
+        "raw_path": request.scope.get("raw_path", b"").decode("utf-8", errors="ignore"),
+        "headers": dict(request.headers)
     }
 
 
