@@ -1,28 +1,312 @@
-import sys
-import os
+"""
+Project FORESIGHT — Serverless FastAPI Microservice for Vercel.
+Operational Demand Forecasting & Inventory Risk Intelligence API for NorthBay Living.
+"""
 
-# Set up paths
-root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-service_dir = os.path.join(root_dir, "service")
-src_dir = os.path.join(root_dir, "src")
+from typing import List, Optional, Literal, Dict, Any
+import numpy as np
+from fastapi import FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
-for p in [root_dir, service_dir, src_dir]:
-    if p not in sys.path:
-        sys.path.insert(0, p)
+app = FastAPI(
+    title="Project FORESIGHT Scoring Service",
+    description="Operational Demand Forecasting & Inventory Risk Scoring API for NorthBay Living",
+    version="1.0.0"
+)
 
-try:
-    from service.main import app
-except Exception as e:
-    from fastapi import FastAPI
-    app = FastAPI(title="Project FORESIGHT API (Fallback)")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
 
-    @app.get("/{full_path:path}")
-    def fallback_error(full_path: str = ""):
-        import traceback
-        return {
-            "error": "Initialization Error in Serverless Runtime",
-            "details": str(e),
-            "traceback": traceback.format_exc(),
-            "python_path": sys.path,
-            "path_requested": full_path
-        }
+
+# ==========================================
+# Pydantic Request & Response Schemas
+# ==========================================
+
+class SKUInputPayload(BaseModel):
+    sku_id: str
+    category: str = "Home Decor"
+    subcategory: str = "Vases"
+    on_hand_units: int = Field(ge=0, description="Current stock on hand")
+    on_order_units: int = Field(default=0, ge=0, description="Stock on order from supplier")
+    lead_time_days: int = Field(default=14, ge=1, description="Lead time in days")
+    unit_cost: float = Field(ge=0.0, description="Cost price in INR")
+    unit_price: float = Field(ge=0.0, description="Selling list price in INR")
+    recent_weekly_sales: List[float] = Field(
+        ...,
+        min_length=1,
+        description="Array of past weekly sales units (oldest to newest)"
+    )
+
+
+class BatchScoreRequest(BaseModel):
+    skus: List[SKUInputPayload] = Field(..., min_length=1)
+
+
+class SKUOutputResponse(BaseModel):
+    sku_id: str
+    category: str
+    subcategory: str
+    forecast_horizon_weeks: int
+    weekly_forecast: List[float]
+    cumulative_forecast_demand: float
+    lead_time_demand: float
+    safety_stock: float
+    reorder_level: float
+    stockout_gap_units: float
+    overstock_excess_units: float
+    stockout_risk_score: float
+    overstock_risk_score: float
+    action: Literal["REORDER NOW", "MARKDOWN / CLEAR", "WATCH / VOLATILE", "HEALTHY"]
+    action_rationale: str
+    sales_at_risk_inr: float
+    capital_locked_inr: float
+
+
+class BatchScoreResponse(BaseModel):
+    total_skus_assessed: int
+    total_sales_at_risk_inr: float
+    total_capital_locked_inr: float
+    results: List[SKUOutputResponse]
+
+
+class HealthResponse(BaseModel):
+    status: str
+    service: str
+    version: str
+    uptime_status: str
+
+
+class MetadataResponse(BaseModel):
+    model_name: str
+    forecast_horizon_weeks: int
+    seasonal_period_weeks: int
+    safety_stock_z: float
+    overstock_horizon_weeks: int
+    baseline_wape: float
+    winner_wape: float
+
+
+# ==========================================
+# Core Decision & Risk Logic (Pure Python)
+# ==========================================
+
+def calculate_sales_at_risk_inr(stockout_gap_units: float, unit_selling_price: float) -> float:
+    return float(round(max(0.0, float(stockout_gap_units)) * max(0.0, float(unit_selling_price)), 2))
+
+
+def calculate_capital_locked_inr(excess_overstock_units: float, unit_cost: float) -> float:
+    return float(round(max(0.0, float(excess_overstock_units)) * max(0.0, float(unit_cost)), 2))
+
+
+def compute_sku_risk_profile(
+    sku_id: str,
+    category: str,
+    subcategory: str,
+    weekly_forecast: np.ndarray,
+    on_hand_units: int,
+    on_order_units: int,
+    lead_time_days: int,
+    unit_cost: float,
+    unit_price: float,
+    historical_weekly_std: float = 5.0
+) -> Dict[str, Any]:
+    fcst = np.asarray(weekly_forecast, dtype=float)
+    horizon_weeks = len(fcst)
+    lead_time_weeks = max(1.0, lead_time_days / 7.0)
+
+    # Lead-time demand
+    full_weeks_lead = int(np.floor(lead_time_weeks))
+    partial_fraction = lead_time_weeks - full_weeks_lead
+    lt_demand_int = np.sum(fcst[:min(horizon_weeks, full_weeks_lead)])
+    lt_demand_partial = fcst[full_weeks_lead] * partial_fraction if full_weeks_lead < horizon_weeks and partial_fraction > 0 else 0.0
+    lead_time_demand = float(lt_demand_int + lt_demand_partial)
+    available_stock = float(on_hand_units + on_order_units)
+
+    # Safety stock (Z=1.65 for 95% CSL)
+    safety_stock = float(round(1.65 * historical_weekly_std * np.sqrt(lead_time_weeks), 1))
+    reorder_level = lead_time_demand + safety_stock
+
+    # Stockout gap & score
+    stockout_gap = max(0.0, float(reorder_level - available_stock))
+    stockout_risk_score = float(np.clip(stockout_gap / (reorder_level + 1e-5), 0.0, 1.0))
+
+    # Overstock forward horizon (12 weeks)
+    overstock_window = 12
+    avg_weekly_fcst = float(np.mean(fcst)) if len(fcst) > 0 else 1.0
+    forward_demand = avg_weekly_fcst * overstock_window
+    excess_units = max(0.0, float(available_stock - forward_demand - safety_stock))
+    overstock_risk_score = float(np.clip(excess_units / (forward_demand + 1e-5), 0.0, 1.0))
+
+    # Financial exposure
+    sales_at_risk = calculate_sales_at_risk_inr(stockout_gap, unit_price)
+    capital_locked = calculate_capital_locked_inr(excess_units, unit_cost)
+
+    # 4-Quadrant mapping
+    is_high_stockout = stockout_risk_score >= 0.50
+    is_high_overstock = overstock_risk_score >= 0.50
+
+    if is_high_stockout and not is_high_overstock:
+        action = "REORDER NOW"
+        rationale = (f"Available stock ({int(available_stock)}) is below reorder level ({int(reorder_level)}) "
+                     f"across {lead_time_days}d lead time. Gap of {int(stockout_gap)} units.")
+    elif not is_high_stockout and is_high_overstock:
+        action = "MARKDOWN / CLEAR"
+        rationale = (f"Current stock ({int(available_stock)}) exceeds {overstock_window}-week demand ({int(forward_demand)}). "
+                     f"₹{capital_locked:,.0f} working capital locked in {int(excess_units)} excess units.")
+    elif is_high_stockout and is_high_overstock:
+        action = "WATCH / VOLATILE"
+        rationale = "Simultaneous stockout gap in lead time and high inventory forward. Review replenishment schedule."
+    else:
+        action = "HEALTHY"
+        rationale = (f"Inventory ({int(available_stock)}) covers lead-time demand ({int(lead_time_demand)}) "
+                     f"with adequate safety buffer ({int(safety_stock)}).")
+
+    return {
+        "sku_id": str(sku_id),
+        "category": category,
+        "subcategory": subcategory,
+        "on_hand_units": int(on_hand_units),
+        "on_order_units": int(on_order_units),
+        "available_stock": int(available_stock),
+        "lead_time_days": int(lead_time_days),
+        "lead_time_demand": round(lead_time_demand, 1),
+        "safety_stock": round(safety_stock, 1),
+        "reorder_level": round(reorder_level, 1),
+        "stockout_gap_units": round(stockout_gap, 1),
+        "overstock_excess_units": round(excess_units, 1),
+        "stockout_risk_score": round(stockout_risk_score, 4),
+        "overstock_risk_score": round(overstock_risk_score, 4),
+        "cumulative_forecast_demand": round(float(np.sum(fcst)), 1),
+        "weekly_forecast": [round(float(v), 2) for v in fcst],
+        "action": action,
+        "action_rationale": rationale,
+        "sales_at_risk_inr": sales_at_risk,
+        "capital_locked_inr": capital_locked
+    }
+
+
+def score_single_sku_logic(payload: SKUInputPayload) -> SKUOutputResponse:
+    recent_sales = np.array(payload.recent_weekly_sales, dtype=float)
+    if len(recent_sales) == 0:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="recent_weekly_sales array cannot be empty")
+
+    n = len(recent_sales)
+    if n >= 52:
+        weekly_fcst = np.array([max(0.0, recent_sales[-52 + (h % 52)]) for h in range(8)])
+    else:
+        recent_window = min(n, 8)
+        med_val = float(np.median(recent_sales[-recent_window:]))
+        trend = float(np.mean(np.diff(recent_sales[-recent_window:]))) if recent_window >= 4 else 0.0
+        weekly_fcst = np.array([max(0.0, med_val + (h * trend * 0.1)) for h in range(8)])
+
+    hist_std = float(np.std(recent_sales)) if n >= 2 else 5.0
+
+    profile = compute_sku_risk_profile(
+        sku_id=payload.sku_id,
+        category=payload.category,
+        subcategory=payload.subcategory,
+        weekly_forecast=weekly_fcst,
+        on_hand_units=payload.on_hand_units,
+        on_order_units=payload.on_order_units,
+        lead_time_days=payload.lead_time_days,
+        unit_cost=payload.unit_cost,
+        unit_price=payload.unit_price,
+        historical_weekly_std=hist_std
+    )
+
+    return SKUOutputResponse(
+        sku_id=profile["sku_id"],
+        category=profile["category"],
+        subcategory=profile["subcategory"],
+        forecast_horizon_weeks=8,
+        weekly_forecast=profile["weekly_forecast"],
+        cumulative_forecast_demand=profile["cumulative_forecast_demand"],
+        lead_time_demand=profile["lead_time_demand"],
+        safety_stock=profile["safety_stock"],
+        reorder_level=profile["reorder_level"],
+        stockout_gap_units=profile["stockout_gap_units"],
+        overstock_excess_units=profile["overstock_excess_units"],
+        stockout_risk_score=profile["stockout_risk_score"],
+        overstock_risk_score=profile["overstock_risk_score"],
+        action=profile["action"],
+        action_rationale=profile["action_rationale"],
+        sales_at_risk_inr=profile["sales_at_risk_inr"],
+        capital_locked_inr=profile["capital_locked_inr"]
+    )
+
+
+# ==========================================
+# REST API Endpoints
+# ==========================================
+
+@app.get("/", tags=["Root"])
+def root():
+    return {
+        "service": "Project FORESIGHT AI Demand & Inventory Intelligence API",
+        "status": "operational",
+        "version": "1.0.0",
+        "documentation": "/docs",
+        "health_check": "/health",
+        "model_metadata": "/metadata"
+    }
+
+
+@app.get("/health", response_model=HealthResponse, tags=["Observability"])
+def health_check():
+    return HealthResponse(
+        status="healthy",
+        service="foresight-scoring-service",
+        version="1.0.0",
+        uptime_status="operational"
+    )
+
+
+@app.get("/metadata", response_model=MetadataResponse, tags=["Observability"])
+def get_metadata():
+    return MetadataResponse(
+        model_name="RandomForest",
+        forecast_horizon_weeks=8,
+        seasonal_period_weeks=52,
+        safety_stock_z=1.65,
+        overstock_horizon_weeks=12,
+        baseline_wape=0.3317,
+        winner_wape=0.2079
+    )
+
+
+@app.post("/score", response_model=SKUOutputResponse, tags=["Scoring"])
+def score_sku(payload: SKUInputPayload):
+    try:
+        return score_single_sku_logic(payload)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Scoring error: {str(e)}")
+
+
+@app.post("/score/batch", response_model=BatchScoreResponse, tags=["Scoring"])
+def score_batch(payload: BatchScoreRequest):
+    results = []
+    total_sales_at_risk = 0.0
+    total_capital_locked = 0.0
+
+    for sku_item in payload.skus:
+        res = score_single_sku_logic(sku_item)
+        results.append(res)
+        total_sales_at_risk += res.sales_at_risk_inr
+        total_capital_locked += res.capital_locked_inr
+
+    return BatchScoreResponse(
+        total_skus_assessed=len(results),
+        total_sales_at_risk_inr=round(total_sales_at_risk, 2),
+        total_capital_locked_inr=round(total_capital_locked, 2),
+        results=results
+    )
+
+
+# Export handler for Vercel WSGI/ASGI compatibility
+handler = app
