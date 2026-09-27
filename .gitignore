@@ -24,6 +24,7 @@ artifacts/*.joblib
 *.secret
 *.key
 *.json
+recovery-codes.txt
 !data/
 !reports/
 !src/
